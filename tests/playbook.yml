@@ -1,0 +1,68 @@
+---
+- hosts: all
+  tasks:
+    - name: Create jenkins user for testing
+      user:
+        name: jenkins
+        state: present
+    - name: install cron
+      yum:
+        name: cronie
+        state: present
+
+- hosts: all
+  tasks:
+    - name: Dictacting test environment
+      set_fact:
+        molecule: true
+    - name: Display value of molecule variable
+      debug:
+        var: molecule
+    - name: Display value of ansible_hostname
+      debug:
+        var: ansible_hostname
+    - name: Display value of ansible_system_vendor
+      debug:
+        var: ansible_system_vendor
+    - name: Display value of ansible_virtualization_type
+      debug:
+        var: ansible_virtualization_type
+
+- hosts: all
+  tasks:
+  - name: Install openssl for creating random passwords
+    yum:
+      name: openssl
+      state: present
+  - name: Create temporary passwords for running tests
+    command: /usr/bin/openssl rand -out /tmp/{{ item }}.txt -hex 16
+    args:
+      creates: /tmp/{{ item }}.txt
+    with_items: ["password1", "password2", "password3", "password4"]
+
+- hosts: all
+  gather_facts: true
+  pre_tasks:
+  - name: Get LDAP password from file for tests
+    command: cat /tmp/password1.txt
+    register: getpass1
+    changed_when: False
+  - name: Get Zabbix password from file for tests
+    command: cat /tmp/password2.txt
+    register: getpass2
+    changed_when: False
+  - name: Get Zabbix password from file for tests
+    command: cat /tmp/password3.txt
+    register: getpass3
+    changed_when: False
+  - name: Get Zabbix password from file for tests
+    command: cat /tmp/password4.txt
+    register: getpass4
+    changed_when: False
+  - set_fact:
+      ldap_pass: "{{ getpass1.stdout }}"
+      zabbix_pass: "{{ getpass2.stdout }}"
+      zabbixserver_role_zabbix_db_passwd: "{{ getpass3.stdout }}"
+      zabbixserver_role_service_now_password: "{{ getpass4.stdout }}"
+  roles:
+    - role: zabbixserver-role

@@ -1,0 +1,22 @@
+---
+dependency:
+  name: galaxy
+  requirements_file: tests/requirements.yml
+driver:
+  name: docker
+docker:
+  containers:
+    - name: zabbixserver-role-${BRANCH_NAME}-${BUILD_NUMBER}
+      image: centos/systemd
+      image_version: latest
+      build_image: true
+      dockerfile: tests/Dockerfile
+      privileged: true
+      cap_add:
+        - SYS_ADMIN
+      environment:
+        http_proxy: "http://reformmgmtproxyout.reform.hmcts.net:8080/"
+ansible:
+  playbook: tests/playbook.yml
+verifier:
+  name: testinfra

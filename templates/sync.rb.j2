@@ -1,0 +1,119 @@
+require 'net-ldap'
+require 'zabbixapi'
+require 'securerandom'
+
+# ENV for secrets and whatnot
+load '/opt/ldapsync/env.rb' if File.exists?('/opt/ldapsync/env.rb')
+
+
+def checkUserExists(queryuser)
+  if @zbx.users.get_id(:alias => queryuser) == nil
+    return false
+  end
+end
+
+def checkLdapGroups(queryuser)
+  groups = []
+  filter = Net::LDAP::Filter.construct("(&(objectClass=posixGroup)(memberUid=#{queryuser}))")
+  @ldap.search(:base => "ou=groups,{{ zabbixserver_role_ldap_rootdn }}", :filter => filter) do |object|
+    groups << object.cn
+  end
+  return groups.flatten
+end
+
+def checkZabbixGroups(queryuser)
+  groups = []
+  userid = @zbx.users.get_id(:alias => queryuser)
+
+  usergroups = @zbx.query(
+    :method => "usergroup.get",
+    :params => {
+      "output" => "extend",
+      "userids" => [userid]
+    }
+  )
+  usergroups.each do |user|
+    groups << user['name']
+  end
+ return groups
+end
+
+def checkMembership(queryuser)
+  ldapgroups = checkLdapGroups(queryuser)
+  zabbixgroups = checkZabbixGroups(queryuser)
+  if ldapgroups.include?("{{ zabbixserver_role_ldap_group_devops }}")
+    unless zabbixgroups.include?("{{ zabbixserver_role_ldap_group_admin }}")
+      @zbx.usergroups.add_user(
+        :usrgrpids => [@zbx.usergroups.get_id(:name => "{{ zabbixserver_role_ldap_group_admin }}")],
+        :userids => [@zbx.users.get_id(:alias => queryuser)]
+      )
+      puts "Added #{queryuser} to Administrators"
+    end
+    @zbx.users.update(
+      :userid => @zbx.users.get_id(:alias => queryuser),
+      :type => 3
+    )
+  end
+
+  if ldapgroups.include?("{{ zabbixserver_role_ldap_group_ldevs }}")
+    unless zabbixgroups.include?("{{ zabbixserver_role_ldap_group_zdevs }}")
+      @zbx.usergroups.add_user(
+        :usrgrpids => [@zbx.usergroups.get_id(:name => "{{ zabbixserver_role_ldap_group_zdevs }}")],
+        :userids => [@zbx.users.get_id(:alias => queryuser)]
+      )
+      puts "Added #{queryuser} to Devs"
+    end
+  end
+end
+
+def getAllLDAPUsers
+  users = []
+  filter = Net::LDAP::Filter.construct("(&(objectClass=posixGroup)(|(cn=coredevops)(cn=developers)))")
+  @ldap.search(:base => "ou=groups,{{ zabbixserver_role_ldap_rootdn }}", :filter => filter) do |object|
+    users << object.memberUid
+  end
+  return users.flatten.uniq
+end
+
+def checkUser(user)
+  uid = @zbx.users.get_id(:alias => user)
+  if uid == nil
+    password = SecureRandom.hex
+    @zbx.users.create(
+      :alias => user,
+      :passwd => password,
+      :usrgrps => [
+        :usrgrpid => nil
+      ]
+    )
+    puts "Created new user #{user}"
+  end
+end
+
+@zbx = ZabbixApi.connect(
+  :url => '{{ zabbixserver_role_api_endpoint }}',
+  :user => 'admin',
+  :password => "#{ENV['zabbix_password']}"
+)
+
+ldapuser="admin"
+ldappass="#{ENV['ldap_password']}"
+
+@ldap = Net::LDAP.new(:host => "{{ zabbixserver_role_ldap_host }}",
+:port => {{ zabbixserver_role_ldap_port }},
+:encryption => :simple_tls,
+:auth => {
+     :method => :simple,
+     :username => "cn=#{ldapuser},{{ zabbixserver_role_ldap_rootdn }}",
+     :password => "#{ldappass}"
+})
+
+unless @ldap.bind
+  puts "Can't bind correctly to LDAP"
+end
+
+users = getAllLDAPUsers
+users.each do |user|
+  checkUser(user)
+  checkMembership(user)
+end

@@ -1,0 +1,24 @@
+# Zabbix repository details
+zabbixserver_role_zabbix_repourl: "http://repo.zabbix.com/zabbix/3.2/rhel/7/x86_64/zabbix-release-3.2-1.el7.noarch.rpm"
+zabbixserver_role_zabbix_gpgkey: "http://repo.zabbix.com/RPM-GPG-KEY-ZABBIX"
+zabbixserver_role_zabbix_filepath: "/etc/yum.repos.d/zabbix.repo"
+zabbixserver_role_zabbix_version: 3.2.7
+
+zabbixserver_role_service_now_api_url: https://myservice.mydomain.com/file.do
+zabbixserver_role_service_now_user: myusername
+
+zabbixserver_role_ldap_host: "myldap.mydomain.com"
+zabbixserver_role_ldap_port: "9999"
+zabbixserver_role_ldap_rootdn: "dc=mydomain,dc=com"
+zabbixserver_role_ldap_group_admin: "admin"
+zabbixserver_role_ldap_group_devops: "devops"
+zabbixserver_role_ldap_group_ldevs: "devel"
+zabbixserver_role_ldap_group_zdevs: "devs"
+
+zabbixserver_role_api_endpoint: "https://monitoring.mydomain.com/zabbix/api_jsonrpc.php"
+
+# You must define the following variables
+#zabbixserver_role_zabbix_db_passwd: ""
+#zabbixserver_role_service_now_password: ""
+#ldap_pass: ""
+#zabbix_pass: ""

@@ -1,0 +1,33 @@
+# Zabbix monitoring system php web frontend
+Alias /zabbix /usr/share/zabbix
+
+<Directory "/usr/share/zabbix">
+    Options FollowSymLinks
+    AllowOverride None
+    Require all granted
+
+   {% if zabbixserver_role_httpd_php_values is defined %}
+   <IfModule mod_php5.c>
+   {% for key, value in zabbixserver_role_httpd_php_values.items() %}
+      php_value {{ key }} {{ value }}
+   {% endfor %}
+   </IfModule>
+   {% endif %}
+
+</Directory>
+
+<Directory "/usr/share/zabbix/conf">
+    Require all denied
+</Directory>
+
+<Directory "/usr/share/zabbix/app">
+    Require all denied
+</Directory>
+
+<Directory "/usr/share/zabbix/include">
+    Require all denied
+</Directory>
+
+<Directory "/usr/share/zabbix/local">
+    Require all denied
+</Directory>

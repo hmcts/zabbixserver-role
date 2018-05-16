@@ -1,0 +1,137 @@
+---
+- name: check if Zabbix repo is already configured
+  stat:
+    path: "{{ zabbixserver_role_zabbix_filepath }}"
+  register: zabbix_repofile_result
+
+- name: install EPEL repo.
+  yum:
+    name: epel-release
+    state: present
+
+- name: setup the Zabbix repository
+  yum:
+    name: "{{ zabbixserver_role_zabbix_repourl }}"
+    state: present
+  when: not zabbix_repofile_result.stat.exists
+
+- name: import zabbix GPG key.
+  rpm_key:
+    key: "{{ zabbixserver_role_zabbix_gpgkey }}"
+    state: present
+  when: not zabbix_repofile_result.stat.exists
+
+- name: Install various things
+  yum:
+    name: "{{ item }}"
+    disablerepo: ius
+    enablerepo: zabbix
+    state: present
+  with_items:
+    - libsemanage-python
+    - libselinux-python
+    - zabbix-server-mysql-{{ zabbixserver_role_zabbix_version }}
+    - zabbix-web-mysql-{{ zabbixserver_role_zabbix_version }}
+
+- name: Install mariadb and mariadb-server
+  yum:
+    name: "{{ item }}"
+  with_items:
+    - mariadb
+    - mariadb-server
+
+- name: start and enable mariadb
+  service:
+    name: mariadb
+    state: started
+    enabled: yes
+
+- name: install zabbix-get
+  yum:
+    name: zabbix-get-{{ zabbixserver_role_zabbix_version }}
+    enablerepo: zabbix
+    state: present
+
+- name: install MySQL-python
+  yum:
+    name: MySQL-python
+    state: present
+
+- name: create/check zabbix database
+  mysql_db:
+    name: zabbix
+    encoding: utf8
+    collation: utf8_bin
+    state: present
+  register: zabbixdb
+
+- include: initialise_db.yml
+  when: zabbixdb.changed
+
+- name: copy httpd configuration file
+  template:
+    src: httpd.j2
+    dest: /etc/httpd/conf.d/zabbix.conf
+  register: httpdconfchange
+
+- name: selinux - ensure httpd can connect to network ports
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes
+  when: ansible_selinux is defined and ansible_selinux.status is defined and ansible_selinux.status == "enabled"
+
+- name: selinux - configure SELinux Policy httpd can connect db
+  seboolean:
+    name: httpd_can_network_connect_db
+    state: yes
+    persistent: yes
+  when: ansible_selinux is defined and ansible_selinux.status is defined and ansible_selinux.status == "enabled"
+
+- name: selinux - configure SELinux Policy zabbix
+  seboolean:
+    name: zabbix_can_network
+    state: yes
+    persistent: yes
+  when: ansible_selinux is defined and ansible_selinux.status is defined and ansible_selinux.status == "enabled"
+
+- name: selinux - check if selinux policy for zabbix_server is  loaded
+  command: bash -c "semodule -l | grep zabbix_se"
+  register: semodule_loaded
+  ignore_errors: true
+  when: ansible_selinux is defined and ansible_selinux.status is defined and ansible_selinux.status == "enabled"
+
+- name: selinux - copy selinux policy
+  copy:
+    src: zabbix_se.pp
+    dest: /etc/zabbix/
+    owner: root
+    group: root
+    mode: 0644
+  when: semodule_loaded is defined and semodule_loaded.rc is defined and semodule_loaded.rc !=0
+
+- name: selinux - enable policy to allow setrlimit
+  command: semodule -i /etc/zabbix/zabbix_se.pp
+  when: semodule_loaded is defined and semodule_loaded.rc is defined and semodule_loaded.rc !=0
+
+- name: copy servicenow integration script
+  template:
+    src: zabbix_servicenow.sh.j2
+    dest: /usr/lib/zabbix/alertscripts/zabbix_servicenow.sh
+    force: yes
+  when:
+    - ansible_virtualization_type != "docker"
+
+- name: start and enable zabbix-server
+  service:
+    name: zabbix-server
+    state: started
+    enabled: yes
+
+- name: start and enable zabbix-server UI
+  service:
+    name: httpd
+    state: started
+    enabled: yes
+
+- include: ldap_sync.yml

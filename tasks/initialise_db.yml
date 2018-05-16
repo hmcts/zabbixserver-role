@@ -1,0 +1,20 @@
+---
+- name: create zabbix database user
+  mysql_user:
+    name: zabbix
+    password: "{{ zabbixserver_role_zabbix_db_passwd }}"
+    priv: zabbix.*:ALL
+    state: present
+
+- name: import zabbix database schema
+  mysql_db:
+    name: zabbix
+    target: /usr/share/doc/zabbix-server-mysql-{{ zabbixserver_role_zabbix_version }}/create.sql.gz
+    state: import
+
+- name: configure password in zabbix_server.conf
+  replace:
+    dest: /etc/zabbix/zabbix_server.conf
+    regexp: '^# DBPassword=$'
+    replace: "DBPassword={{ zabbixserver_role_zabbix_db_passwd }}"
+    backup: yes

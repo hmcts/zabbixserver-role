@@ -1,0 +1,52 @@
+---
+- name: Install ruby
+  yum:
+    name: ruby
+    state: present
+
+- name: zabbixapi to make gem happy
+  gem:
+    name: zabbixapi
+    version: 3.1.0
+    state: present
+    user_install: no
+
+- name: net-ldap to make Gem happy
+  gem:
+    name: net-ldap
+    state: present
+    user_install: no
+
+- name: Make directory
+  file:
+    path: /opt/ldapsync
+    owner: jenkins
+    group: jenkins
+    mode: 0755
+    state: directory
+
+- name: Copy script over
+  template:
+    src: sync.rb.j2
+    dest: /opt/ldapsync/sync.rb
+    owner: jenkins
+    group: jenkins
+    mode: 0644
+
+- name: Template in env for all the tasty secrets
+  template:
+    src: env.rb.j2
+    dest: /opt/ldapsync/env.rb
+    owner: jenkins
+    group: jenkins
+    mode: 0600
+
+- name: Schedule it with cron
+  cron:
+    name: ldap-sync-cron
+    job: /usr/bin/ruby /opt/ldapsync/sync.rb
+    minute: 0,30
+    state: present
+    user: jenkins
+  tags:
+    - skip_ansible_lint

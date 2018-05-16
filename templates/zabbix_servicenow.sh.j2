@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#Get the host name as CI
+# 'grep' Command Explained: the '$2' has the description and because there is a lot of junk in it we are parsing for the 'hostname' which will be the CI. The 'head -1' is there to take only
+# the first occurence, there is a '$' on the outermost braces to indicate the outcome from grep be redirected to a variable
+
+#ci=$(grep -oP '(?<={)[\w\s]+(?=:)' <<< $2 | head -1)
+#ci=$(grep -oP '(?<=Hostname: ).+' <<< $2 | head -1)
+ci=$(grep -oP '[\w.]+(?=.reform.hmcts.net)' <<< $2  | head -1)
+echo $ci
+
+curl -v -H "Accept: application/json" -H "Content-Type: application/json" -X POST --data "{
+     \"records\":
+     [
+          {
+             \"short_description\" : \"$1\",
+             \"description\"       : \"$2\",
+             \"assigned_to\"       : \"$3\",
+             \"cmdb_ci\"           : \"$ci\",
+             \"contact_type\"      : \"Zabbix Alerting\"
+          }
+     ]
+     }" -u {{ zabbixserver_role_service_now_user }}:{{ zabbixserver_role_service_now_password }} "{{ zabbixserver_role_service_now_api_url }}"

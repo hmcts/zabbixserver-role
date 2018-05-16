@@ -1,0 +1,2 @@
+[vagrant] 
+172.0.0.1 ansible_port=2222 ansible_host=localhost ansible_user=vagrant
